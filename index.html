@@ -1,0 +1,64 @@
+<html>
+
+<head>
+    <title>WebAssembly Test</title>
+    <script>
+        var aListeners = [];
+        var results = [];
+        var times = [];
+        var workers = [];
+        var cpu_cores = 4;
+
+        //load up our workers
+        for (var i = 0; i < cpu_cores; i++) {
+            workers[i] = new Worker("./worker.js");
+            workers[i].onmessage = function (oEvent) {
+                if (aListeners[oEvent.data.id]) {
+                    aListeners[oEvent.data.id](oEvent.data.evaluated, this);
+                }
+                delete aListeners[oEvent.data.id];
+            };
+        }
+
+        function getRandomWorker(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        var asyncEval = (function () {
+            return function (worker, sCode, fListener) {
+                aListeners.push(fListener || null);
+                worker.postMessage({
+                    "id": aListeners.length - 1,
+                    "code": sCode
+                });
+            };
+        })();
+        //Our test function
+        function test(numReq, code) {
+            console.time("Total_Elapsed");
+            times = [];
+            results = [];
+            times.push((new Date()).valueOf());
+            var num = numReq || 10000;
+            for (var i = 0; i < num; i++) {
+                asyncEval(getRandomWorker(workers), code || "Date()", function (result, worker) {
+                    times.push((new Date()).valueOf());
+                    results.push(result);
+                    if (results.length == num) {
+                        console.timeEnd("Total_Elapsed");
+                        console.log("Processing Time for all workers: " + (parseInt(times[times.length - 1]) - parseInt(times[0])).toString() + "ms");
+                        var numRequests = results.length * parseInt(results[0].split(": ")[1]);
+                        console.log("Total sql statements processed: " + numRequests);
+                    }
+                });
+            };
+            return "Executing test ...";
+        }
+    </script>
+</head>
+
+<body>
+    Press F12 to view console
+</body>
+
+</html>
